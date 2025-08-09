@@ -1,3 +1,4 @@
+import os
 import asyncio
 import functools
 import itertools
@@ -7,6 +8,48 @@ from pathlib import Path
 from typing import Any, Optional
 
 import orjson as json
+from gemini_webapi import GeminiClient
+
+# 从环境变量中读取 cookies
+# Render 部署时，请确保在配置中设置了 SECURE_1PSID 和 SECURE_1PSIDTS
+SECURE_1PSID = os.environ.get("SECURE_1PSID")
+SECURE_1PSIDTS = os.environ.get("SECURE_1PSIDTS")
+
+async def initialize_client():
+    """初始化并返回 GeminiClient 实例"""
+    if not SECURE_1PSID or not SECURE_1PSIDTS:
+        print("警告：环境变量 SECURE_1PSID 和 SECURE_1PSIDTS 未设置。")
+        print("请在 Render 服务配置中添加这些环境变量。")
+        # 在本地开发时，可以从浏览器自动加载 cookies
+        # 如果你的项目在 Render 上，这部分代码不会被执行
+        try:
+            print("尝试使用 browser-cookie3 自动加载 cookies...")
+            client = GeminiClient()
+            await client.init(timeout=30)
+            return client
+        except Exception as e:
+            print(f"无法自动加载 cookies: {e}")
+            return None
+    
+    print("正在使用环境变量中的 cookies 初始化 GeminiClient...")
+    client = GeminiClient(SECURE_1PSID, SECURE_1PSIDTS)
+    await client.init(timeout=30)
+    return client
+
+async def main():
+    """主函数，包含你的应用逻辑"""
+    client = await initialize_client()
+    if client:
+        # 在这里调用 Gemini API
+        response = await client.generate_content("用中文告诉我今天的天气怎么样？")
+        print("Gemini 返回的文本：")
+        print(response.text)
+    else:
+        print("客户端初始化失败，无法继续。")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
 from httpx import AsyncClient, ReadTimeout, Response
 
 from .constants import Endpoint, ErrorCode, Headers, Model, GRPC
